@@ -11,46 +11,78 @@ class Program
 
     public static void Main()
     {
+        ShowMenu("main");
+    }
+
+    private static void ShowMenu(string menuType)
+    {
         while (true)
         {
-            Console.WriteLine("1. Create XML file");
-            Console.WriteLine("2. Add/Update employee data");
-            Console.WriteLine("3. Search employees by surname");
-            Console.WriteLine("4. Display salary payments");
-            Console.WriteLine("5. Data analysis");
-            Console.WriteLine("6. Export data to XML");
-            Console.WriteLine("7. Exit");
-            Console.Write("Enter your choice: ");
-
-            var choice = int.Parse(Console.ReadLine()!);
-
-            switch (choice)
+            switch (menuType)
             {
-                case 1:
-                    CreateXmlFile();
+                case "main":
+                    Console.WriteLine("1. Создать XML файл");
+                    Console.WriteLine("2. Добавить/Обновить данные о сотруднике");
+                    Console.WriteLine("3. Поиск сотрудников по фамилии");
+                    Console.WriteLine("4. Сотрудники которые работают более чем в 1 отделе");
+                    Console.WriteLine("5. Отделы с не более чем 1 сотрудником");
+                    Console.WriteLine("6. Топ годов по увольнению/найму");
+                    Console.WriteLine("7. Вывод сотрудников у которых юбилей");
+                    Console.WriteLine("8. Экспорт данных в XML");
+                    Console.WriteLine("9. График изменения курса валют");
+                    Console.Write("Enter your choice: ");
+
+                    var choice = int.Parse(Console.ReadLine()!);
+
+                    switch (choice)
+                    {
+                        case 1:
+                            CreateXmlFile();
+                            break;
+                        case 2:
+                            AddOrUpdateEmployeeData();
+                            break;
+                        case 3:
+                            SearchEmployeesBySurname();
+                            break;
+                        case 4:
+                            DisplaySalaryPayments();
+                            break;
+                        case 5:
+                            PerformDataAnalysis();
+                            break;
+                        case 6:
+                            ExportDataToXml();
+                            break;
+                        case 7:
+                            Environment.Exit(0);
+                            break;
+                        default:
+                            Console.WriteLine("Некорректный выбор, пожалуйста попробуйте ещё раз");
+                            break;
+                    }
+
                     break;
-                case 2:
-                    AddOrUpdateEmployeeData();
-                    break;
-                case 3:
-                    SearchEmployeesBySurname();
-                    break;
-                case 4:
-                    DisplaySalaryPayments();
-                    break;
-                case 5:
-                    PerformDataAnalysis();
-                    break;
-                case 6:
-                    ExportDataToXml();
-                    break;
-                case 7:
-                    Environment.Exit(0);
-                    break;
-                default:
-                    Console.WriteLine("Invalid choice. Please try again.");
+                case "confirmClose":
+                    Console.WriteLine("Выйти из программы ?");
+                    Console.WriteLine("1. Да");
+                    Console.WriteLine("2. Нет");
+
+                    var choice2 = int.Parse(Console.ReadLine()!);
+
+                    switch (choice2)
+                    {
+                        case 1:
+                            Environment.Exit(0);
+                            break;
+                        case 2:
+                            menuType = "main";
+                            continue;
+                    }
                     break;
             }
+
+            break;
         }
     }
 
@@ -58,26 +90,23 @@ class Program
     {
         var employees = new XElement("Сотрудники");
         employees.Save(XmlFilePath);
-        Console.WriteLine("XML file created successfully.");
+        Console.WriteLine("XML файл успешно создан.");
     }
 
     private static void AddOrUpdateEmployeeData()
     {
         var xdoc = XDocument.Load(XmlFilePath);
 
-        Console.Write("Enter employee full name: ");
+        Console.Write("Введите полное имя сотрудника: ");
         var fullName = Console.ReadLine()!;
-
-        // Check if the employee already exists
+        
         var existingEmployee = xdoc.Descendants("Сотрудник")
             .FirstOrDefault(e => e.Element("ФИО").Value == fullName);
 
         if (existingEmployee != null)
         {
-            // Employee exists, update data
-            Console.Write("Enter new job title: ");
+            Console.Write("Введите название новой должности: ");
             var jobTitle = Console.ReadLine()!;
-            // Update other details as needed...
 
             existingEmployee.Element("Работа")!.Value = jobTitle;
 
@@ -86,6 +115,8 @@ class Program
         }
         else
         {
+            Console.Write("Введите год рождения сотрудника");
+            var birthdate = int.Parse(Console.ReadLine()!);
             Console.Write("Напишите название занимаемой должности");
             var jobTitle = Console.ReadLine()!;
             Console.Write("Напишите дату вступления в долженость в (DD-MM-YYYY)");
@@ -117,15 +148,42 @@ class Program
                 }
             }
             Console.Write("Напишите название отдела");
-            var departmentName = Console.ReadLine();
+            var departmentName = Console.ReadLine()!;
+            Console.Write("Напишите зарплату в месяц");
+            var salaryMonth = int.Parse(Console.ReadLine()!);
+
+            var endDate = DateTime.Now;
+            if (jobEnd != "-") endDate = jobEnd;
+            var totalDays = (endDate - startDate).TotalDays;
+            var elapsedMonth = (int)(totalDays / 30.44);
+            var salaryYear = 0;
+            if (elapsedMonth <= 12) salaryYear = salaryMonth * elapsedMonth;
+            else salaryYear = salaryMonth * 12;
+            
             
             var newEmployee = new XElement("Сотрудник",
                 new XElement("ФИО", fullName),
-                new XElement("Работа",
-                    new XElement("Название_должности", Console.ReadLine())));
-            xdoc.Element("Сотрудники")!.Add(newEmployee);
+                new XElement("Год_рождения", birthdate),
+                new XElement("Список_работ",
+                    new XElement("Работа",
+                        new XElement("Название_должности", jobTitle),
+                        new XElement("Дата_начала", startDate),
+                        new XElement("Дата_окончания", jobEnd),
+                        new XElement("Отдел", departmentName)
+                    )
+                ),
+                new XElement("Список_зарплат",
+                    new XElement("Зарплата",
+                        new XElement("Год", salaryYear),
+                        new XElement("Месяц", salaryMonth),
+                        new XElement("Итого", salaryMonth * elapsedMonth)
+                    )
+                )
+            );
+                xdoc.Element("Сотрудники")!.Add(newEmployee);
             xdoc.Save(XmlFilePath);
-            Console.WriteLine("Employee data added successfully.");
+            Console.WriteLine("Сотрудник добавлен успешно.");
+            ShowMenu("confirmClose");
         }
     }
 
