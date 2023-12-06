@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Xml;
@@ -24,13 +25,15 @@ class Program
                     Console.WriteLine("1. Создать XML файл");
                     Console.WriteLine("2. Добавить/Обновить данные о сотруднике");
                     Console.WriteLine("3. Поиск сотрудников по фамилии");
-                    Console.WriteLine("4. Сотрудники которые работают более чем в 1 отделе");
-                    Console.WriteLine("5. Отделы с не более чем 1 сотрудником");
-                    Console.WriteLine("6. Топ годов по увольнению/найму");
-                    Console.WriteLine("7. Вывод сотрудников у которых юбилей");
-                    Console.WriteLine("8. Экспорт данных в XML");
-                    Console.WriteLine("9. График изменения курса валют");
-                    Console.Write("Enter your choice: ");
+                    Console.WriteLine("4. Найти все должности и всех рабочих сотрудников в каждом отеделе");
+                    Console.WriteLine("5. Сотрудники которые работают более чем в 1 отделе");
+                    Console.WriteLine("6. Отделы с не более чем 3 сотрудниками");
+                    Console.WriteLine("7. Топ годов по увольнению/найму");
+                    Console.WriteLine("8. Вывод сотрудников у которых юбилей");
+                    Console.WriteLine("9. Экспорт данных в XML");
+                    Console.WriteLine("10. График изменения курса валют");
+                    Console.WriteLine("11. Выйти");
+                    Console.Write("Введите ваш выбор: ");
 
                     var choice = int.Parse(Console.ReadLine()!);
 
@@ -46,15 +49,24 @@ class Program
                             SearchEmployeesBySurname();
                             break;
                         case 4:
-                            DisplaySalaryPayments();
+                            FindActiveEmployees();
                             break;
                         case 5:
-                            PerformDataAnalysis();
+                            FindEmployeeMultipleDepart();
                             break;
                         case 6:
-                            ExportDataToXml();
+                            FindSmallDeparts();
                             break;
                         case 7:
+                            TopYears();
+                            break;
+                        case 8:
+                            BigBirthdays();
+                            break;
+                        case 9:
+                            ExportDataToXml();
+                            break;
+                        case 11:
                             Environment.Exit(0);
                             break;
                         default:
@@ -80,6 +92,38 @@ class Program
                             continue;
                     }
                     break;
+                case "sortEmployeeData":
+                    Console.WriteLine("Как отображать данные ?");
+                    Console.WriteLine("1. Сначала старые");
+                    Console.WriteLine("2. Сначала новые");
+                    var choice3 = int.Parse(Console.ReadLine()!);
+
+                    switch (choice3)
+                    {
+                        case 1:
+                            SearchEmployeesBySurname();
+                            break;
+                        case 2:
+                            SearchEmployeesBySurname(false);
+                            break;
+                    }
+                    break;
+                case "showSalaryPayments":
+                    Console.WriteLine("Перейти к выводу зачислений заработной платы ?");
+                    Console.WriteLine("1. Да");
+                    Console.WriteLine("2. Выйти в главное меню");
+                    var choice4 = int.Parse(Console.ReadLine()!);
+
+                    switch (choice4)
+                    {
+                        case 1:
+                            DisplaySalaryPayments();
+                            break;
+                        case 2:
+                            menuType = "main";
+                            continue;
+                    }
+                    break;
             }
 
             break;
@@ -91,6 +135,7 @@ class Program
         var employees = new XElement("Сотрудники");
         employees.Save(XmlFilePath);
         Console.WriteLine("XML файл успешно создан.");
+        ShowMenu("confirmClose");
     }
 
     private static void AddOrUpdateEmployeeData()
@@ -105,78 +150,48 @@ class Program
 
         if (existingEmployee != null)
         {
-            Console.Write("Введите название новой должности: ");
-            var jobTitle = Console.ReadLine()!;
-
-            existingEmployee.Element("Работа")!.Value = jobTitle;
-
+            var job = ResolveJob();
+            var jobXml = new XElement("Работа",
+                    new XElement("Название_должности", job.Item1),
+                    new XElement("Дата_начала", job.Item2.ToString("dd.MM.yyyy")),
+                    new XElement("Дата_окончания", job.Item8? "-" : job.Item3.ToString("dd.MM.yyyy")),
+                    new XElement("Отдел", job.Item4)
+                );
+            var salaryXml = new XElement("Список_зарплат",
+                new XElement("Зарплата",
+                    new XElement("Год", job.Item7),
+                    new XElement("Месяц", job.Item6),
+                    new XElement("Итого", job.Item6 * job.Item5)
+                )
+            );
+            existingEmployee.Element("Список_работ")!.Add(jobXml);
+            existingEmployee.Element("Список_зарплат")!.Add(salaryXml);
             xdoc.Save(XmlFilePath);
-            Console.WriteLine("Employee data updated successfully.");
+            Console.WriteLine("Данные о сотруднике успешно обновлены.");
+            ShowMenu("confirmClose");
         }
         else
         {
-            Console.Write("Введите год рождения сотрудника");
+            Console.Write("Введите год рождения сотрудника: ");
             var birthdate = int.Parse(Console.ReadLine()!);
-            Console.Write("Напишите название занимаемой должности");
-            var jobTitle = Console.ReadLine()!;
-            Console.Write("Напишите дату вступления в долженость в (DD-MM-YYYY)");
-            var startTime = Console.ReadLine()!;
-            var startDate = DateTime.ParseExact(startTime, "DD-MM-YYYY", null);
-            dynamic jobEnd = "-";
-            var isChecked = "not";
-            while (isChecked == "not")
-            {
-                Console.Write("Это его текущая должность ? Напечатайте y или n");
-                var answer = Console.ReadLine();
-                switch (answer)
-                {
-                    case "n":
-                    {
-                        Console.Write("Напишите дату оконччания работы в (DD-MM-YYYY)");
-                        var endData = Console.ReadLine()!;
-                        jobEnd = DateTime.ParseExact(endData, "DD-MM-YYYY", null);
-                        isChecked = "yes";
-                        break;
-                    }
-                    case "y":
-                        Console.Write("Работник ещё в должности.");
-                        isChecked = "yes";
-                        break;
-                    default:
-                        Console.Write("Попробуйте ещё раз");
-                        break;
-                }
-            }
-            Console.Write("Напишите название отдела");
-            var departmentName = Console.ReadLine()!;
-            Console.Write("Напишите зарплату в месяц");
-            var salaryMonth = int.Parse(Console.ReadLine()!);
-
-            var endDate = DateTime.Now;
-            if (jobEnd != "-") endDate = jobEnd;
-            var totalDays = (endDate - startDate).TotalDays;
-            var elapsedMonth = (int)(totalDays / 30.44);
-            var salaryYear = 0;
-            if (elapsedMonth <= 12) salaryYear = salaryMonth * elapsedMonth;
-            else salaryYear = salaryMonth * 12;
-            
+            var job = ResolveJob();
             
             var newEmployee = new XElement("Сотрудник",
                 new XElement("ФИО", fullName),
                 new XElement("Год_рождения", birthdate),
                 new XElement("Список_работ",
                     new XElement("Работа",
-                        new XElement("Название_должности", jobTitle),
-                        new XElement("Дата_начала", startDate),
-                        new XElement("Дата_окончания", jobEnd),
-                        new XElement("Отдел", departmentName)
+                        new XElement("Название_должности", job.Item1),
+                        new XElement("Дата_начала", job.Item2.ToString("dd.MM.yyyy")),
+                        new XElement("Дата_окончания", job.Item8? "-" : job.Item3.ToString("dd.MM.yyyy")),
+                        new XElement("Отдел", job.Item4)
                     )
                 ),
                 new XElement("Список_зарплат",
                     new XElement("Зарплата",
-                        new XElement("Год", salaryYear),
-                        new XElement("Месяц", salaryMonth),
-                        new XElement("Итого", salaryMonth * elapsedMonth)
+                        new XElement("Год", job.Item7),
+                        new XElement("Месяц", job.Item6),
+                        new XElement("Итого", job.Item6 * job.Item5)
                     )
                 )
             );
@@ -187,184 +202,368 @@ class Program
         }
     }
 
-    static void SearchEmployeesBySurname()
+    private static (string, DateTime, DateTime, string, int, int, int, bool) ResolveJob()
+    {
+        Console.Write("Напишите название занимаемой должности: ");
+        var jobTitle = Console.ReadLine()!;
+        Console.Write("Напишите дату вступления в долженость в (dd.MM.yyy): ");
+        var startTime = Console.ReadLine()!;
+        var startDate = DateTime.ParseExact(startTime, "dd.MM.yyyy", null);
+        dynamic jobEnd = "-";
+        var isChecked = "not";
+        while (isChecked == "not")
+        {
+            Console.Write("Это его текущая должность ? Напечатайте y или n: ");
+            var answer = Console.ReadLine();
+            switch (answer)
+            {
+                case "n":
+                {
+                    Console.Write("Напишите дату оконччания работы в (dd.MM.yyyy): ");
+                    var endData = Console.ReadLine()!;
+                    jobEnd = DateTime.ParseExact(endData, "dd.MM.yyyy", null);
+                    isChecked = "yes";
+                    break;
+                }
+                case "y":
+                    Console.Write("Работник ещё в должности.");
+                    isChecked = "yes";
+                    break;
+                default:
+                    Console.Write("Попробуйте ещё раз");
+                    break;
+            }
+        }
+        Console.Write("Напишите название отдела: ");
+        var departmentName = Console.ReadLine()!;
+        Console.Write("Напишите зарплату в месяц: ");
+        var salaryMonth = int.Parse(Console.ReadLine()!);
+
+        var isActive = false;
+        var endDate = DateTime.Now;
+        if (jobEnd is DateTime) endDate = jobEnd;
+        else isActive = true;
+        var totalDays = (endDate - startDate).TotalDays;
+        var elapsedMonth = (int)(totalDays / 30.44);
+        var salaryYear = 0;
+        if (elapsedMonth <= 12) salaryYear = salaryMonth * elapsedMonth;
+        else salaryYear = salaryMonth * 12;
+        return (jobTitle, startDate, endDate, departmentName, elapsedMonth, salaryMonth, salaryYear, isActive);
+    }
+
+    static void SearchEmployeesBySurname(bool oldFirst=true)
     {
         XDocument xdoc = XDocument.Load(XmlFilePath);
 
-        Console.Write("Enter employee surname to search: ");
-        string surname = Console.ReadLine();
+        Console.Write("Введите фамилию сотрудника для поиска: ");
+        string surname = Console.ReadLine()!;
 
-        var matchingEmployees = xdoc.Descendants("Employee")
-            .Where(e => e.Element("FullName").Value.EndsWith(" " + surname))
+        var matchingEmployees = xdoc.Descendants("Сотрудник")
+            .Where(e => e.Element("ФИО")!.Value.StartsWith(surname))
             .ToList();
 
         if (matchingEmployees.Any())
         {
             foreach (var employee in matchingEmployees)
             {
-                Console.WriteLine($"Employee: {employee.Element("FullName").Value}");
-                // Display other details...
+                Console.WriteLine($"Сотрудник: {employee.Element("ФИО")!.Value}");
+                var jobs = employee.Element("Список_работ")!;
+                if (oldFirst)
+                {
+                    foreach (var job in jobs.Elements("Работа"))
+                    {
+                        Console.WriteLine($"Должность: {job.Element("Название_должности")!.Value}");
+                        Console.WriteLine($"Дата вступления в должность: {job.Element("Дата_начала")!.Value}");
+                        var fireDate = job.Element("Дата_окончания")!.Value;
+                        if (fireDate == "-")
+                        {
+                            Console.WriteLine("Дата увольнения: текущая работа");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Дата увольнения {fireDate}");
+                        }
+                        Console.WriteLine($"Отдел: {job.Element("Отдел")!.Value}");
+                    }
+                }
+                else
+                {
+                    var validDataArr = new List<string>();
+                    foreach (var job in jobs.Elements("Работа"))
+                    {
+                        validDataArr.Add($"Должность: {job.Element("Название_должности")!.Value}");
+                        validDataArr.Add($"Дата вступления в должность: {job.Element("Дата_начала")!.Value}");
+                        var fireDate = job.Element("Дата_окончания")!.Value;
+                        if (fireDate == "-")
+                        {
+                            validDataArr.Add("Дата увольнения: текущая работа");
+                        }
+                        else
+                        {
+                            validDataArr.Add($"Дата увольнения {fireDate}");
+                        }
+                        validDataArr.Add($"Отдел: {job.Element("Отдел")!.Value}");
+                    }
+
+                    validDataArr.Reverse();
+
+                    foreach (var jobInfo in validDataArr)
+                    {
+                        Console.WriteLine(jobInfo);
+                    }
+                }
             }
+            ShowMenu("showSalaryPayments");
         }
         else
         {
-            Console.WriteLine("No matching employees found.");
+            Console.WriteLine("Работников с такой фамилией не найдено");
         }
     }
 
     static void DisplaySalaryPayments()
     {
-        XDocument xdoc = XDocument.Load(XmlFilePath);
+        Console.WriteLine("Уточните полное имя сотрудника: ");
+        var eFullName = Console.ReadLine()!; 
+        var xdoc = XDocument.Load(XmlFilePath);
 
-        Console.Write("Enter start date (yyyy-MM): ");
-        string startDateString = Console.ReadLine();
-        DateTime startDate = DateTime.ParseExact(startDateString, "yyyy-MM", null);
+        Console.Write("Введите дату начала (MM.yyyy): ");
+        var startDateString = Console.ReadLine();
+        var startDate = DateTime.ParseExact(startDateString, "MM.yyyy", null);
 
-        Console.Write("Enter end date (yyyy-MM): ");
-        string endDateString = Console.ReadLine();
-        DateTime endDate = DateTime.ParseExact(endDateString, "yyyy-MM", null);
-
-        var salaryPayments = xdoc.Descendants("Salary")
-            .Where(s => 
-            {
-                DateTime paymentDate = DateTime.ParseExact(s.Element("Year").Value + "-" + s.Element("Month").Value, "yyyy-MM", null);
-                return paymentDate >= startDate && paymentDate <= endDate;
-            })
-            .ToList();
-
-        if (salaryPayments.Any())
+        Console.Write("Введите дату конца (MM.yyyy): ");
+        var endDateString = Console.ReadLine();
+        var endDate = DateTime.ParseExact(endDateString, "MM.yyyy", null);
+        
+        var existingEmployee = xdoc.Descendants("Сотрудник")
+            .FirstOrDefault(e => e.Element("ФИО").Value == eFullName);
+        if (existingEmployee != null)
         {
-            foreach (var payment in salaryPayments)
+            var salaryPayments = existingEmployee.Descendants("Зарплата")
+                .Where(s =>
+                {
+                    var paymentDate = DateTime.ParseExact(s.Element("Год")!.Value + "-" + s.Element("Месяц")!.Value,
+                        "MM.yyyy", null);
+                    return paymentDate >= startDate && paymentDate <= endDate;
+                })
+                .ToList();
+
+            if (salaryPayments.Any())
             {
-                Console.WriteLine($"Year: {payment.Element("Year").Value}, Month: {payment.Element("Month").Value}, Total Salary: {payment.Element("TotalSalary").Value}");
+                foreach (var payment in salaryPayments)
+                {
+                    Console.WriteLine(
+                        $"Год: {payment.Element("Год")!.Value}, Месяц: {payment.Element("Месяц")!.Value}, Общая зарплата: {payment.Element("Итого")!.Value}");
+                }
+            }
+            else
+            {
+                Console.WriteLine("Выплат зарплат не найдено за это этот период.");
+                ShowMenu("confirmClose");
             }
         }
         else
         {
-            Console.WriteLine("No salary payments found for the specified period.");
+            Console.WriteLine("Сотрудник не найден");
+            ShowMenu("confirmClose");
         }
     }
 
-    static void PerformDataAnalysis()
+    private static void FindActiveEmployees()
     {
-       XDocument xdoc = XDocument.Load(XmlFilePath);
+        var xdoc = XDocument.Load(XmlFilePath);
+        var activeEmployeesCount = xdoc.Descendants("Сотрудник")
+            .Count(e =>
+            {
+                var endDateElement = e.Element("Список_работ")?.Element("Работа")?.Element("Дата_окончания");
+                return endDateElement == null || endDateElement.Value == "-";
+            });
+        Console.WriteLine($"Всего текущих работников: {activeEmployeesCount}");
+        
 
-    // Number of currently active employees
-    int activeEmployeesCount = xdoc.Descendants("Employee")
-        .Count(e => e.Element("EndDate") == null || DateTime.Parse(e.Element("EndDate").Value) > DateTime.Now);
+        // Получение уникальных отделов и сотрудников для каждого отдела
+        var departments = from employee in xdoc.Descendants("Сотрудник")
+            from work in employee.Descendants("Работа")
+            where work.Element("Дата_окончания")?.Value == "-"
+            group new
+            {
+                ФИО = employee.Element("ФИО")?.Value,
+                Должность = work.Element("Название_должности")?.Value
+            } by work.Element("Отдел")?.Value into departmentGroup
+            select new
+            {
+                Отдел = departmentGroup.Key,
+                Сотрудники = departmentGroup.ToList()
+            };
 
-    Console.WriteLine($"Number of currently active employees: {activeEmployeesCount}");
+        // Вывод информации по каждому отделу
+        foreach (var department in departments)
+        {
+            Console.WriteLine($"Отдел: {department.Отдел}");
 
-    // List of unique job positions in each department
-    var departments = xdoc.Descendants("Department")
-        .Select(d => d.Value)
-        .Distinct();
+            // Список уникальных должностей для отдела
+            var uniquePositions = department.Сотрудники.Select(s => s.Должность).Distinct().ToList();
 
-    foreach (var department in departments)
-    {
-        var uniqueJobPositions = xdoc.Descendants("Employee")
-            .Where(e => e.Element("Department").Value == department)
-            .Select(e => e.Element("JobTitle").Value)
-            .Distinct();
+            Console.WriteLine($"Должности: {string.Join(", ", uniquePositions)}");
 
-        Console.WriteLine($"Unique job positions in {department} department: {string.Join(", ", uniqueJobPositions)}");
+            // Вывод количества работающих сотрудников в отделе
+            Console.WriteLine($"Количество работающих сотрудников: {department.Сотрудники.Count}");
+
+            // Вычисление и вывод доли работающих сотрудников
+            var totalDepartmentEmployees = xdoc
+                .Descendants("Сотрудник")
+                .Count(e => e.Descendants("Работа")
+                    .Any(r => r.Element("Отдел")?.Value == department.Отдел &&
+                              r.Element("Дата_окончания")?.Value == "-"));
+            var percentage = (department.Сотрудники.Count / totalDepartmentEmployees) * 100;
+
+            Console.WriteLine($"Доля работающих сотрудников: {percentage:F2}%\n");
+
+        }
+
+        ShowMenu("confirmClose");
     }
 
-    // Departments with no more than 3 employees
-    var departmentsWithFewEmployees = xdoc.Descendants("Department")
-        .Where(d => xdoc.Descendants("Employee")
-            .Count(e => e.Element("Department").Value == d.Value) <= 3)
-        .Select(d => d.Value);
-
-    Console.WriteLine($"Departments with no more than 3 employees: {string.Join(", ", departmentsWithFewEmployees)}");
-
-    // Employees currently working in more than one department
-    var employeesInMultipleDepartments = xdoc.Descendants("Employee")
-        .GroupBy(e => e.Element("FullName").Value)
-        .Where(g => g.Count() > 1)
-        .Select(g => g.Key);
-
-    Console.WriteLine($"Employees working in more than one department: {string.Join(", ", employeesInMultipleDepartments)}");
-
-    // Years when the highest and lowest number of employees were hired or fired
-    var hiringYears = xdoc.Descendants("Employee")
-        .Select(e => DateTime.Parse(e.Element("StartDate").Value).Year)
-        .ToList();
-
-    var firingYears = xdoc.Descendants("Employee")
-        .Where(e => e.Element("EndDate") != null)
-        .Select(e => DateTime.Parse(e.Element("EndDate").Value).Year)
-        .ToList();
-
-    int maxHiringYear = hiringYears.GroupBy(y => y).OrderByDescending(g => g.Count()).First().Key;
-    int minHiringYear = hiringYears.GroupBy(y => y).OrderBy(g => g.Count()).First().Key;
-    int maxFiringYear = firingYears.GroupBy(y => y).OrderByDescending(g => g.Count()).First().Key;
-    int minFiringYear = firingYears.GroupBy(y => y).OrderBy(g => g.Count()).First().Key;
-
-    Console.WriteLine($"Year with the highest number of hires: {maxHiringYear}");
-    Console.WriteLine($"Year with the lowest number of hires: {minHiringYear}");
-    Console.WriteLine($"Year with the highest number of fires: {maxFiringYear}");
-    Console.WriteLine($"Year with the lowest number of fires: {minFiringYear}");
-
-    // Identify employees having a jubilee (major anniversary) this year
-    var jubileeEmployees = xdoc.Descendants("Employee")
-        .Where(e => e.Element("StartDate") != null && DateTime.Now.Year - DateTime.Parse(e.Element("StartDate").Value).Year % 5 == 0);
-
-    Console.WriteLine("Employees with a jubilee this year:");
-    foreach (var jubileeEmployee in jubileeEmployees)
+    private static void FindEmployeeMultipleDepart()
     {
-        Console.WriteLine($"- {jubileeEmployee.Element("FullName").Value}");
+        var xdoc = XDocument.Load(XmlFilePath);
+        var employees = from employee in xdoc.Descendants("Сотрудник")
+            where employee.Descendants("Работа").Count() > 1
+            select new
+            {
+                ФИО = employee.Element("ФИО")?.Value,
+                СписокРабот = employee.Descendants("Работа").Select(r => r.Element("Отдел")?.Value).ToList()
+            };
+
+        // Вывод результатов
+        foreach (var employee in employees)
+        {
+            Console.WriteLine($"ФИО: {employee.ФИО}");
+            Console.WriteLine("Отделы:");
+            foreach (var department in employee.СписокРабот)
+            {
+                Console.WriteLine($"  - {department}");
+            }
+            Console.WriteLine();
+        }
+        ShowMenu("confirmClose");
     }
+
+    private static void FindSmallDeparts()
+    {
+        XDocument xdoc = XDocument.Load(XmlFilePath);
+        var departmentsWithFewEmployees = xdoc.Descendants("Сотрудник")
+            .SelectMany(s => s.Descendants("Отдел").Select(o => o.Value))
+            .GroupBy(d => d)
+            .Where(g => g.Count() <= 3)
+            .Select(g => g.Key)
+            .ToList();
+
+
+        Console.WriteLine($"Отделы где работают не более 3 человек: {string.Join(", ", departmentsWithFewEmployees)}");
+        ShowMenu("confirmClose");
     }
+
+    private static void TopYears()
+    {
+        var xdoc = XDocument.Load(XmlFilePath);
+        var hiringYears = xdoc.Descendants("Сотрудник")
+            .SelectMany(e => e.Descendants("Работа"))
+            .Where(r => r.Element("Дата_начала") != null)
+            .Select(r => DateTime.ParseExact(r.Element("Дата_начала").Value, "dd.MM.yyyy", CultureInfo.InvariantCulture).Year)
+            .ToList();
+
+        var firingYears = xdoc.Descendants("Сотрудник")
+            .SelectMany(e => e.Descendants("Работа"))
+            .Where(r => r.Element("Дата_окончания") != null && r.Element("Дата_окончания").Value != "-")
+            .Select(r => DateTime.ParseExact(r.Element("Дата_окончания").Value, "dd.MM.yyyy", CultureInfo.InvariantCulture).Year)
+            .ToList();
+
+        if (hiringYears.Any())
+        {
+            int maxHiringYear = hiringYears.GroupBy(y => y).OrderByDescending(g => g.Count()).First().Key;
+            int minHiringYear = hiringYears.GroupBy(y => y).OrderBy(g => g.Count()).First().Key;
+            Console.WriteLine($"Год с наибольшим количеством нанятых сотрудников: {maxHiringYear}");
+            Console.WriteLine($"Год с наименьшим количеством нанятых сотрудников: {minHiringYear}");
+        }
+        else
+        {
+            Console.WriteLine("Нет данных о найме сотрудников.");
+        }
+
+        if (firingYears.Any())
+        {
+            int maxFiringYear = firingYears.GroupBy(y => y).OrderByDescending(g => g.Count()).First().Key;
+            int minFiringYear = firingYears.GroupBy(y => y).OrderBy(g => g.Count()).First().Key;
+            Console.WriteLine($"Год с наибольшим количеством увольнений: {maxFiringYear}");
+            Console.WriteLine($"Год с наименьшим количеством увольнений: {minFiringYear}");
+        }
+        else
+        {
+            Console.WriteLine("Нет данных об увольнении сотрудников.");
+        }
+        ShowMenu("confirmClose");
+    }
+
+    private static void BigBirthdays()
+    {
+        var xdoc = XDocument.Load(XmlFilePath);
+        var employeesWithAnniversary = xdoc.Descendants("Сотрудник")
+            .Select(e => new
+            {
+                ФИО = e.Element("ФИО")?.Value,
+                ГодРождения = int.Parse(e.Element("Год_рождения")?.Value),
+                Возраст = DateTime.Now.Year - int.Parse(e.Element("Год_рождения")?.Value)
+            })
+            .Where(e => e.Возраст % 5 == 0)
+            .ToList();
+
+        foreach (var employee in employeesWithAnniversary)
+        {
+            Console.WriteLine($"В этом году сотруднику: {employee.ФИО}, исполняется: {employee.Возраст} лет");
+        }
+        ShowMenu("confirmClose");
+    }
+    
 
     static void ExportDataToXml()
     {
-        XDocument xdoc = XDocument.Load(XmlFilePath);
+        var xdoc = XDocument.Load(XmlFilePath);
 
-        // Implement logic to extract analyzed data
-        // For the purpose of this example, I'm creating a simple XML structure as an example.
-        XElement analyzedData = new XElement("AnalyzedData");
+        var departments = xdoc.Descendants("Работа")
+            .Where(r => r.Element("Дата_окончания")?.Value == "-")
+            .GroupBy(r => r.Element("Отдел")?.Value)
+            .Select(group => new
+            {
+                Название = group.Key,
+                Количество_работающих_сотрудников = group.Count(),
+                Количество_работающих_сотрудников_молодежь = group.Count(e =>
+                {
+                    var value = e.Parent.Element("Список_работ")?.Parent
+                        ?.Element("Год_рождения")?.Value;
+                    return value != null &&
+                           e.Parent?.Element("Список_работ").Parent?.Element("Год_рождения") != null &&
+                           !string.IsNullOrEmpty(e.Parent?.Element("Список_работ").Parent.Element("Год_рождения")
+                               .Value) &&
+                           (DateTime.Now.Year - int.Parse(value)) < 30;
+                })
+            })
+            .ToList();
 
-        // Add analyzed data to the XML structure
-        analyzedData.Add(new XElement("ActiveEmployeesCount", xdoc.Descendants("Employee")
-            .Count(e => e.Element("EndDate") == null || DateTime.Parse(e.Element("EndDate").Value) > DateTime.Now)));
+        // Создание XML-структуры
+        var xmlResult = new XElement("Отделы",
+            departments.Select(dep => new XElement("Отдел",
+                new XAttribute("Название", dep.Название),
+                new XElement("Количество_работающих_сотрудников", dep.Количество_работающих_сотрудников),
+                new XElement("Количество_работающих_сотрудников_молодежь", dep.Количество_работающих_сотрудников_молодежь)
+            ))
+        );
 
-        var departments = xdoc.Descendants("Department")
-            .Select(d => d.Value)
-            .Distinct();
+        // Сохранение XML в файл
+        xmlResult.Save("export.xml"); // Замените на фактический путь для сохранения
 
-        foreach (var department in departments)
-        {
-            var uniqueJobPositions = xdoc.Descendants("Employee")
-                .Where(e => e.Element("Department").Value == department)
-                .Select(e => e.Element("JobTitle").Value)
-                .Distinct();
-
-            analyzedData.Add(new XElement("UniqueJobPositions", new XAttribute("Department", department),
-                uniqueJobPositions.Select(j => new XElement("JobPosition", j))));
-        }
-
-        var departmentsWithFewEmployees = xdoc.Descendants("Department")
-            .Where(d => xdoc.Descendants("Employee")
-                .Count(e => e.Element("Department").Value == d.Value) <= 3)
-            .Select(d => d.Value);
-
-        analyzedData.Add(new XElement("DepartmentsWithFewEmployees",
-            departmentsWithFewEmployees.Select(d => new XElement("Department", d))));
-
-        var employeesInMultipleDepartments = xdoc.Descendants("Employee")
-            .GroupBy(e => e.Element("FullName").Value)
-            .Where(g => g.Count() > 1)
-            .Select(g => g.Key);
-
-        analyzedData.Add(new XElement("EmployeesInMultipleDepartments",
-            employeesInMultipleDepartments.Select(e => new XElement("Employee", e))));
-
-        // Add other analyzed data as needed...
-
-        // Save the analyzed data to a new XML file
-        analyzedData.Save("analyzed_data.xml");
-        Console.WriteLine("Data exported to analyzed_data.xml");
+        Console.WriteLine("Экспорт данных выполнен успешно.");
+        ShowMenu("confirmClose");
     }
 
     static void FetchAndDisplayCurrencyRates()
